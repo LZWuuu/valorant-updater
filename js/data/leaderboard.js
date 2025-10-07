@@ -41,7 +41,7 @@ export async function updateLeaderboard(shouldSave = true) {
     let allMatches = [];
     try {
       // 清理配置值，确保没有多余的空格
-      const cleanRepo = (config.repo || "Z0O-zw/valorant-updater").trim();
+      const cleanRepo = (config.repo || "LZWuuu/valorant-updater").trim();
       const cleanBranch = (config.branch || "main").trim();
 
       // 使用数组 join 构建 URL，避免拼接错误
