@@ -336,17 +336,36 @@ export async function updateUserData() {
         console.log(`🆕 [DEBUG] 新增比赛数量: ${newCustomMatches.length}`, {
           newMatchIds: newCustomMatches.map(m => m.metadata?.matchid),
           oldNewestMatchID: userJson.newestMatchID,
-          newNewestMatchID: latestMatchId
+          newNewestMatchID: latestMatchId,
+          userInfoUpdated: updatedCount > 0
         });
 
-        promises.push(
-          saveUserData(userJson, userData.sha)
-        );
+        // 只有在用户数据发生变化时才保存（用户信息变化或newestMatchID变化）
+        const userDataHasChanges = updatedCount > 0 || (latestMatchId !== userJson.newestMatchID);
+        if (userDataHasChanges) {
+          console.log('👤 [DEBUG] 有新比赛且用户数据发生变化，需要保存用户数据:', {
+            userInfoChanged: updatedCount > 0,
+            matchIdWillChange: latestMatchId !== userJson.newestMatchID
+          });
+          promises.push(
+            saveUserData(userJson, userData.sha)
+          );
+        } else {
+          console.log('ℹ️ [DEBUG] 有新比赛但用户数据无变化，跳过用户数据保存');
+        }
 
         // 4.2 检查并准备比赛数据更新
         if (newCustomMatches.length > 0 || latestMatchId !== userJson.newestMatchID) {
 
-          userJson.newestMatchID = latestMatchId;
+          // 检查是否需要更新 newestMatchID
+          const needsMatchIdUpdate = latestMatchId !== userJson.newestMatchID;
+          if (needsMatchIdUpdate) {
+            console.log('🔄 [DEBUG] 更新 newestMatchID:', {
+              old: userJson.newestMatchID,
+              new: latestMatchId
+            });
+            userJson.newestMatchID = latestMatchId;
+          }
 
           if (newCustomMatches.length > 0) {
             const batchUpdateKey = perf.start('批量更新', `user.json + ${newCustomMatches.length}个比赛文件 + leaderboard.json`);
@@ -356,13 +375,21 @@ export async function updateUserData() {
               // 1. 准备要批量提交的文件
               const filesToCommit = [];
 
-              // 2. 准备user.json内容
-              const userContent = JSON.stringify(userJson, null, 4);
-              filesToCommit.push({
-                path: config.userDataPath,
-                content: userContent
-              });
-              console.log('📄 [DEBUG] 已准备user.json文件');
+              // 2. 准备user.json内容（有用户信息变化或newestMatchID变化时才包含）
+              const userDataNeedsUpdate = updatedCount > 0 || needsMatchIdUpdate;
+              if (userDataNeedsUpdate) {
+                const userContent = JSON.stringify(userJson, null, 4);
+                filesToCommit.push({
+                  path: config.userDataPath,
+                  content: userContent
+                });
+                console.log('📄 [DEBUG] 已准备user.json文件:', {
+                  userInfoChanged: updatedCount > 0,
+                  matchIdChanged: needsMatchIdUpdate
+                });
+              } else {
+                console.log('ℹ️ [DEBUG] 跳过user.json文件（无变化）');
+              }
 
               // 3. 准备新比赛文件内容
               for (const match of newCustomMatches) {
