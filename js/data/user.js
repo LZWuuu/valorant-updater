@@ -116,7 +116,10 @@ export async function updateUserData() {
       const modeId = match?.metadata?.mode_id;
 
       // 首先检查 mode 是否为 custom
-      const isCustomMode = (mode === "custom");
+      const isCustomMode = (mode === "custom" || mode === "Custom" ||
+                           modeId === "custom" || modeId === "Custom" ||
+                           mode?.toLowerCase() === "custom" ||
+                           modeId?.toLowerCase() === "custom");
 
       if (!isCustomMode) {
         return false;
