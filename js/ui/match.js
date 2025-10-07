@@ -332,7 +332,7 @@ function calculateTeamRecommendation() {
   // 输出前3个最佳组合进行对比
   console.log('前3个最佳组合对比:');
   scoredCombinations.slice(0, 3).forEach((combo, index) => {
-    console.log(`第${index + 1}名: total=${combo.score.total.toFixed(3)}, kd=${combo.score.kdBalance.toFixed(3)}, rusty=${combo.score.collaboration.toFixed(3)}, diversity=${combo.score.diversity.toFixed(3)}`);
+    console.log(`第${index + 1}名: total=${combo.score.total.toFixed(3)}, kd=${combo.score.kdBalance.toFixed(3)}, rusty=${combo.score.Rusty.toFixed(3)}, diversity=${combo.score.diversity.toFixed(3)}`);
     console.log(`  α队: ${combo.redTeam.map(p => p.name).join(', ')}`);
     console.log(`  Ω队: ${combo.blueTeam.map(p => p.name).join(', ')}`);
   });
@@ -347,7 +347,7 @@ function calculateTeamRecommendation() {
       kd: playerStats[p.puuid]?.kd || 0
     })),
     balanceScore: 1 - bestCombination.score.kdBalance,
-    collaborationScore: bestCombination.score.collaboration
+    collaborationScore: bestCombination.score.Rusty
   };
 }
 
