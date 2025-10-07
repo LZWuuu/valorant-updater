@@ -451,11 +451,17 @@ tr:hover {
   border: 1px solid #f0f0f0;
 }
 
-.vs-divider {
-  font-weight: 600;
-  color: #666666;
-  font-size: 14px;
+.recommended-team {
+  border-left: 4px solid #EADD47;
+  padding-left: 16px;
+  background: rgba(234, 221, 71, 0.05);
 }
+
+.recommended-team .team-label {
+  color: #EADD47;
+  font-weight: 700;
+}
+
 
 .recommendation-stats {
   margin-top: 16px;
@@ -572,11 +578,6 @@ tr:hover {
   color: #666666;
 }
 
-.vs-separator {
-  font-weight: 600;
-  color: #666666;
-  text-align: center;
-}
 
 .victory-badge {
   position: absolute;
@@ -668,17 +669,9 @@ tr:hover {
     gap: 16px;
   }
 
-  .vs-divider {
-    order: 2;
-  }
-
   .match-teams {
     grid-template-columns: 1fr;
     gap: 16px;
-  }
-
-  .vs-separator {
-    order: 2;
   }
 
   /* Fix tab overflow on mobile */

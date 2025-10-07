@@ -53,7 +53,10 @@ export async function render() {
       headrate: stats.headrate.toFixed(1),
       wins: stats.win,
       winRate: winRate,
-      totalGames: stats.all
+      totalGames: stats.totalGames || stats.all,
+      avgKills: (stats.avgKills || 0).toFixed(1),
+      avgDeaths: (stats.avgDeaths || 0).toFixed(1),
+      avgAssists: (stats.avgAssists || 0).toFixed(1)
     };
   });
 
@@ -100,12 +103,30 @@ export async function render() {
           </div>
           <div class="stat-group">
             <div class="stat-item">
+              <span class="stat-label">总场次</span>
+              <span class="stat-value">${player.totalGames}</span>
+            </div>
+            <div class="stat-item">
               <span class="stat-label">胜利</span>
               <span class="stat-value">${player.wins}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">胜率</span>
               <span class="stat-value">${player.winRate}%</span>
+            </div>
+          </div>
+          <div class="stat-group">
+            <div class="stat-item">
+              <span class="stat-label">场均K</span>
+              <span class="stat-value">${player.avgKills}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">场均D</span>
+              <span class="stat-value">${player.avgDeaths}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">场均A</span>
+              <span class="stat-value">${player.avgAssists}</span>
             </div>
           </div>
         </div>

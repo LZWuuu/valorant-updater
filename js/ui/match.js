@@ -163,7 +163,6 @@ function renderMatchCard(matchInfo, index) {
           ${matchInfo.winningTeam === 'Alpha' ? '<div class="victory-badge">胜利</div>' : ''}
         </div>
 
-        <div class="vs-separator">VS</div>
 
         <div class="team ${matchInfo.winningTeam === 'Omega' ? 'winning-team' : 'losing-team'}">
           <div class="team-label blue-label">Ω队</div>
@@ -221,7 +220,6 @@ function renderTeamRecommendation() {
           </div>
         </div>
 
-        <div class="vs-divider">VS</div>
 
         <div class="recommended-team blue-team">
           <div class="team-label">推荐Ω队</div>

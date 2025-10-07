@@ -2,6 +2,7 @@
 import { loadConfig } from './config.js';
 import { loadDataWithToken } from './api/github.js';
 import { updateUserData } from './data/user.js';
+import { updateLeaderboard } from './data/leaderboard.js';
 import { setPlayers, setLeaderboardData } from './ui/players.js';
 import { setMatches } from './data/match.js';
 import { showTab } from './ui/common.js';
@@ -52,12 +53,22 @@ async function init() {
 
     setMatches(data.matches);
 
-    // 如果刚更新了 leaderboard，使用新数据；否则使用从 GitHub 加载的数据
-    if (updateResult && updateResult.updatedLeaderboardData) {
-      setLeaderboardData(updateResult.updatedLeaderboardData);
+    // 始终重新计算排行榜数据以确保显示最新结果
+    console.log('📊 [DEBUG] 重新计算排行榜数据...');
+    const leaderboardKey = perf.start('排行榜重计算');
+    const freshLeaderboardData = await updateLeaderboard(false); // false表示只计算不保存
+    if (freshLeaderboardData) {
+      setLeaderboardData(freshLeaderboardData);
+      console.log('✅ [DEBUG] 排行榜数据已更新');
     } else {
-      setLeaderboardData(data.leaderboard);
+      console.log('⚠️ [DEBUG] 排行榜计算失败，使用缓存数据');
+      if (updateResult && updateResult.updatedLeaderboardData) {
+        setLeaderboardData(updateResult.updatedLeaderboardData);
+      } else {
+        setLeaderboardData(data.leaderboard);
+      }
     }
+    perf.end(leaderboardKey);
     perf.end(uiKey);
 
     // 5. 显示默认标签页

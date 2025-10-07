@@ -289,7 +289,26 @@ export async function updateLeaderboard(shouldSave = true) {
       }
     });
 
-    // 6. 验证统计结果
+    // 6. 计算场均数据
+    leaderboardData.players.forEach(player => {
+      const totalGames = player.all || 0;
+
+      // 总场次就是 player.all
+      player.totalGames = totalGames;
+
+      // 计算场均数据，保留一位小数
+      if (totalGames > 0) {
+        player.avgKills = Math.round((player.kills / totalGames) * 10) / 10;
+        player.avgDeaths = Math.round((player.deaths / totalGames) * 10) / 10;
+        player.avgAssists = Math.round((player.assists / totalGames) * 10) / 10;
+      } else {
+        player.avgKills = 0;
+        player.avgDeaths = 0;
+        player.avgAssists = 0;
+      }
+    });
+
+    // 7. 验证统计结果
     leaderboardData.players.forEach(player => {
       const killsAgainstSum = Object.values(player.killsAgainst || {}).reduce((sum, kills) => sum + kills, 0);
       const difference = player.kills - killsAgainstSum;
