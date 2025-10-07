@@ -1,6 +1,6 @@
 // 用户数据管理模块
 import { config } from '../config.js';
-import { saveUserData, ensureMatchDirectoryExists, saveMatchFile } from '../api/github.js';
+import { saveUserData, saveMatchFile, commitMultipleFiles } from '../api/github.js';
 import { fetchMatchList } from '../api/henrik.js';
 import { updateLeaderboard } from './leaderboard.js';
 import { showLoadingIndicator, showErrorMessage } from '../ui/common.js';
@@ -15,15 +15,7 @@ export async function updateUserData() {
   try {
     showLoadingIndicator(true);
 
-    // 1. 确保 src/match 目录存在
-    const dirExists = await ensureMatchDirectoryExists();
-    if (!dirExists) {
-      console.error("无法确保 src/match 目录存在，跳过更新");
-      showLoadingIndicator(false);
-      return;
-    }
-
-    // 2. 加载当前的用户数据
+    // 1. 加载当前的用户数据（移除了目录检查以减少一次GitHub读取）
     const loadUserKey = perf.start('数据加载', '用户数据');
     let userJson, userData;
     try {
@@ -83,10 +75,7 @@ export async function updateUserData() {
       const modeId = match?.metadata?.mode_id;
 
       // 首先检查 mode 是否为 custom
-      const isCustomMode = (mode === "custom" || mode === "Custom" ||
-                           modeId === "custom" || modeId === "Custom" ||
-                           mode?.toLowerCase() === "custom" ||
-                           modeId?.toLowerCase() === "custom");
+      const isCustomMode = (mode === "custom");
 
       if (!isCustomMode) {
         return false;
@@ -289,34 +278,76 @@ export async function updateUserData() {
           userJson.newestMatchID = latestMatchId;
 
           if (newCustomMatches.length > 0) {
-            const saveNewMatchesKey = perf.start('文件批量处理', `保存${newCustomMatches.length}个新比赛`);
+            const batchUpdateKey = perf.start('批量更新', `user.json + ${newCustomMatches.length}个比赛文件 + leaderboard.json`);
 
-            for (const match of newCustomMatches) {
-              const matchId = match.metadata.matchid;
-              const matchPath = `src/match/${matchId}.json`;
+            try {
+              // 1. 准备要批量提交的文件
+              const filesToCommit = [];
+
+              // 2. 准备user.json内容
+              const userContent = JSON.stringify(userJson, null, 4);
+              filesToCommit.push({
+                path: config.userDataPath,
+                content: userContent
+              });
+
+              // 3. 准备新比赛文件内容
+              for (const match of newCustomMatches) {
+                const matchId = match.metadata.matchid;
+                const matchPath = `src/match/${matchId}.json`;
+
+                // 复制match数据并删除rounds字段（节省空间）
+                const matchDataCopy = { ...match };
+                delete matchDataCopy.rounds;
+
+                const matchContent = JSON.stringify(matchDataCopy, null, 4);
+                filesToCommit.push({
+                  path: matchPath,
+                  content: matchContent
+                });
+              }
+
+              // 4. 计算并准备leaderboard.json内容
+              // 先计算leaderboard数据（不保存到GitHub）
+              updatedLeaderboardData = await updateLeaderboard(false); // false表示只计算不保存
+
+              if (updatedLeaderboardData) {
+                const leaderboardContent = JSON.stringify(updatedLeaderboardData, null, 4);
+                filesToCommit.push({
+                  path: 'src/leaderboard.json',
+                  content: leaderboardContent
+                });
+              }
+
+              // 5. 批量提交所有文件
+              const commitMessage = `Update match data: ${newCustomMatches.length} new matches`;
+              await commitMultipleFiles(filesToCommit, commitMessage);
+
+              console.log('✅ 成功批量更新:', {
+                userJsonUpdated: true,
+                newMatches: newCustomMatches.length,
+                leaderboardUpdated: !!updatedLeaderboardData
+              });
+
+            } catch (error) {
+              console.error("❌ 批量更新失败:", error);
+              // 如果批量更新失败，回退到单独保存
+              console.log("🔄 尝试单独保存...");
 
               try {
-                await saveMatchFile(match, matchPath);
-              } catch (err) {
-                console.error(`保存比赛 ${matchId} 失败:`, err);
+                await saveUserData(userJson, userData.sha);
+                for (const match of newCustomMatches) {
+                  const matchId = match.metadata.matchid;
+                  const matchPath = `src/match/${matchId}.json`;
+                  await saveMatchFile(match, matchPath);
+                }
+                updatedLeaderboardData = await updateLeaderboard();
+              } catch (fallbackError) {
+                console.error("单独保存也失败:", fallbackError);
               }
             }
-            perf.end(saveNewMatchesKey);
 
-            // 保存新比赛后更新 newestMatchID 到 user.json
-            try {
-              await saveUserData(userJson, userData.sha);
-            } catch (error) {
-              console.error("更新 newestMatchID 失败:", error);
-            }
-
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            try {
-              updatedLeaderboardData = await updateLeaderboard();
-            } catch (error) {
-              console.error("更新 leaderboard 失败:", error);
-            }
+            perf.end(batchUpdateKey);
           }
         } else {
 

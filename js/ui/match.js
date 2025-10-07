@@ -240,7 +240,7 @@ function renderTeamRecommendation() {
       <div class="recommendation-stats">
         <div class="balance-info">
           <span>K/D平衡度: ${recommendation.balanceScore.toFixed(3)}</span>
-          <span>协作差异度: ${recommendation.collaborationScore.toFixed(3)}</span>
+          <span>协作磨合度: ${recommendation.collaborationScore.toFixed(3)}</span>
         </div>
       </div>
     </div>
@@ -332,7 +332,7 @@ function calculateTeamRecommendation() {
   // 输出前3个最佳组合进行对比
   console.log('前3个最佳组合对比:');
   scoredCombinations.slice(0, 3).forEach((combo, index) => {
-    console.log(`第${index + 1}名: total=${combo.score.total.toFixed(3)}, kd=${combo.score.kdBalance.toFixed(3)}, collab=${combo.score.collaboration.toFixed(3)}, diversity=${combo.score.diversity.toFixed(3)}`);
+    console.log(`第${index + 1}名: total=${combo.score.total.toFixed(3)}, kd=${combo.score.kdBalance.toFixed(3)}, rusty=${combo.score.collaboration.toFixed(3)}, diversity=${combo.score.diversity.toFixed(3)}`);
     console.log(`  α队: ${combo.redTeam.map(p => p.name).join(', ')}`);
     console.log(`  Ω队: ${combo.blueTeam.map(p => p.name).join(', ')}`);
   });
@@ -475,24 +475,30 @@ function evaluateTeamCombination(combination, playerStats, collaborationMatrix, 
   const omegaCollaboration = calculateTeamCollaboration(blueTeam, collaborationMatrix);
 
   // 分别计算每队的协作差异度，然后取平均
-  const alphaCollaborationScore = 1 / (1 + alphaCollaboration);
-  const omegaCollaborationScore = 1 / (1 + omegaCollaboration);
-  const collaboration = (alphaCollaborationScore + omegaCollaborationScore) / 2;
+  const alphaRustyScore = 1 / (1 + alphaCollaboration);
+  const omegaRustyScore = 1 / (1 + omegaCollaboration);
+  const Rusty = alphaRustyScore + omegaRustyScore;
 
   // 3. 与上次组队差异度评分
   let diversity = 1;
   if (lastTeamConfig) {
-    const alphaSameCount = redTeam.filter(p => lastTeamConfig.redTeam.includes(p.puuid)).length;
-    const omegaSameCount = blueTeam.filter(p => lastTeamConfig.blueTeam.includes(p.puuid)).length;
-    diversity = 1 - (alphaSameCount + omegaSameCount) / 8;
+    const onesideSameCount = redTeam.filter(p => lastTeamConfig.redTeam.includes(p.puuid)).length;
+    const othersideSameCount = redTeam.filter(p => lastTeamConfig.blueTeam.includes(p.puuid)).length;
+    // 差值绝对值为 0 -> 换了两个人（max）
+    // 差值绝对值为 2 -> 换了一个人
+    // 差值绝对值为 4 -> 完全和上局一样
+    diversity =  (2 - Math.abs(onesideSameCount - othersideSameCount) / 2) / 3
   }
 
-  // 综合评分 - 调整权重让避免重复更重要
-  const total = (1 - kdBalance) * 1 + collaboration * 20 + (1 - diversity) * 8;
+  // 综合评分 - 越高越推荐
+  // kdBalance 越低越好，（1 - kdBalance）越高越好；
+  // alpha/omegaCollaboration 越低越好，alpha/omegaRustyScore越高越好，Rusty 越高越好；
+  // diversity 越高越好[0, 0.33, 0.67]；
+  const total = (1 - kdBalance) * 0.3 + Rusty * 0.4 + diversity * 0.3;
 
   return {
     kdBalance,
-    collaboration,
+    Rusty,
     diversity,
     total
   };

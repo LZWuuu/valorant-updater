@@ -4,7 +4,7 @@ import { saveLeaderboardData } from '../api/github.js';
 import { perf } from '../utils/performance.js';
 
 // 更新排行榜
-export async function updateLeaderboard() {
+export async function updateLeaderboard(shouldSave = true) {
   const mainKey = perf.start('排行榜更新', 'updateLeaderboard主函数');
   try {
 
@@ -300,8 +300,10 @@ export async function updateLeaderboard() {
     });
     perf.end(statsKey);
 
-    // 7. 保存更新后的 leaderboard 数据
-    await saveLeaderboardData(leaderboardData);
+    // 7. 保存更新后的 leaderboard 数据（可选）
+    if (shouldSave) {
+      await saveLeaderboardData(leaderboardData);
+    }
 
     // 返回更新后的数据
     perf.end(mainKey);

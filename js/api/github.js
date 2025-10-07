@@ -442,3 +442,116 @@ export async function saveLeaderboardData(leaderboardData) {
     throw error;
   }
 }
+
+// 批量提交多个文件到GitHub（单次commit）
+export async function commitMultipleFiles(files, commitMessage = 'Batch update data files') {
+  const key = perf.start('GitHub保存', 'commitMultipleFiles');
+  try {
+    console.log('🔄 开始批量提交:', {
+      files: files.map(f => f.path),
+      message: commitMessage
+    });
+
+    // 1. 获取当前最新commit的SHA
+    const latestCommitRes = await fetch(`https://api.github.com/repos/${config.repo}/git/refs/heads/${config.branch}`, {
+      headers: { "Authorization": `token ${config.token}` }
+    });
+
+    if (!latestCommitRes.ok) {
+      throw new Error(`Failed to get latest commit: ${latestCommitRes.status}`);
+    }
+
+    const latestRef = await latestCommitRes.json();
+    const latestCommitSha = latestRef.object.sha;
+
+    // 2. 获取当前commit的tree
+    const commitRes = await fetch(`https://api.github.com/repos/${config.repo}/git/commits/${latestCommitSha}`, {
+      headers: { "Authorization": `token ${config.token}` }
+    });
+
+    if (!commitRes.ok) {
+      throw new Error(`Failed to get commit: ${commitRes.status}`);
+    }
+
+    const commit = await commitRes.json();
+    const baseTreeSha = commit.tree.sha;
+
+    // 3. 创建新的tree（包含所有要更新的文件）
+    const treeItems = files.map(file => ({
+      path: file.path,
+      mode: '100644',
+      type: 'blob',
+      content: file.content
+    }));
+
+    const treeRes = await fetch(`https://api.github.com/repos/${config.repo}/git/trees`, {
+      method: 'POST',
+      headers: {
+        "Authorization": `token ${config.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        base_tree: baseTreeSha,
+        tree: treeItems
+      })
+    });
+
+    if (!treeRes.ok) {
+      const error = await treeRes.json();
+      throw new Error(`Failed to create tree: ${error.message}`);
+    }
+
+    const tree = await treeRes.json();
+
+    // 4. 创建新的commit
+    const newCommitRes = await fetch(`https://api.github.com/repos/${config.repo}/git/commits`, {
+      method: 'POST',
+      headers: {
+        "Authorization": `token ${config.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        message: commitMessage,
+        tree: tree.sha,
+        parents: [latestCommitSha]
+      })
+    });
+
+    if (!newCommitRes.ok) {
+      const error = await newCommitRes.json();
+      throw new Error(`Failed to create commit: ${error.message}`);
+    }
+
+    const newCommit = await newCommitRes.json();
+
+    // 5. 更新branch引用指向新commit
+    const updateRefRes = await fetch(`https://api.github.com/repos/${config.repo}/git/refs/heads/${config.branch}`, {
+      method: 'PATCH',
+      headers: {
+        "Authorization": `token ${config.token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sha: newCommit.sha
+      })
+    });
+
+    if (!updateRefRes.ok) {
+      const error = await updateRefRes.json();
+      throw new Error(`Failed to update ref: ${error.message}`);
+    }
+
+    console.log('✅ 批量提交成功:', {
+      commitSha: newCommit.sha,
+      filesCount: files.length
+    });
+
+    perf.end(key);
+    return newCommit;
+
+  } catch (error) {
+    console.error('❌ 批量提交失败:', error);
+    perf.end(key);
+    throw error;
+  }
+}
