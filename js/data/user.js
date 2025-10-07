@@ -250,14 +250,21 @@ export async function updateUserData() {
           }
           perf.end(saveMatchesKey);
 
-          // 补充保存后更新 newestMatchID
-          try {
-            await saveUserData(userJson, userData.sha);
-          } catch (error) {
-            console.error("更新 newestMatchID 失败:", error);
+          // 检查是否需要更新 newestMatchID 或用户信息
+          const needsUserDataUpdate = updatedCount > 0; // 这里不需要更新 newestMatchID，因为没有新比赛
+          if (needsUserDataUpdate) {
+            console.log('👤 [DEBUG] 补充保存比赛文件后，用户信息有变化，保存 user.json');
+            try {
+              await saveUserData(userJson, userData.sha);
+            } catch (error) {
+              console.error("更新用户数据失败:", error);
+            }
+          } else {
+            console.log('ℹ️ [DEBUG] 补充保存比赛文件后，用户信息无变化，跳过 user.json 保存');
           }
 
-          // 补充保存后更新 leaderboard
+          // 补充保存了比赛文件，需要更新 leaderboard
+          console.log('📊 [DEBUG] 补充保存了比赛文件，需要更新 leaderboard');
           try {
             updatedLeaderboardData = await updateLeaderboard();
           } catch (error) {
@@ -295,14 +302,17 @@ export async function updateUserData() {
                 }
 
                 if (needsUpdate) {
+                  console.log('📊 [DEBUG] leaderboard 需要初始化，进行更新');
                   try {
                     await updateLeaderboard();
                   } catch (error) {
                     console.error("初始化 leaderboard 失败:", error);
                   }
                 } else {
+                  console.log('ℹ️ [DEBUG] leaderboard 已初始化，跳过更新');
                 }
               } catch (parseError) {
+                console.log('⚠️ [DEBUG] leaderboard 解析失败，需要重新初始化');
                 try {
                   await updateLeaderboard();
                 } catch (error) {
@@ -310,6 +320,7 @@ export async function updateUserData() {
                 }
               }
             } else {
+              console.log('📊 [DEBUG] leaderboard 文件不存在，需要创建');
               try {
                 await updateLeaderboard();
               } catch (error) {
@@ -493,13 +504,17 @@ export async function updateUserData() {
                 }
 
                 if (needsUpdate) {
+                  console.log('📊 [DEBUG] 有新比赛分支: leaderboard 需要初始化，进行更新');
                   try {
                     await updateLeaderboard();
                   } catch (error) {
                     console.error("初始化 leaderboard 失败:", error);
                   }
+                } else {
+                  console.log('ℹ️ [DEBUG] 有新比赛分支: leaderboard 已初始化，跳过更新');
                 }
               } catch (parseError) {
+                console.log('⚠️ [DEBUG] 有新比赛分支: leaderboard 解析失败，需要重新初始化');
                 try {
                   await updateLeaderboard();
                 } catch (error) {
@@ -519,6 +534,7 @@ export async function updateUserData() {
         }
       }
     } else {
+      console.log('ℹ️ [DEBUG] 没有找到custom比赛，无操作');
     }
 
   } catch (error) {
