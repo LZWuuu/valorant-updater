@@ -11,13 +11,14 @@ export async function updateUserData() {
   const mainKey = perf.start('用户数据更新', 'updateUserData主函数');
   let hasNewMatches = false;
   let updatedLeaderboardData = null;
+  let userJson = { players: [], newestMatchID: null }; // 初始化默认值
+  let userData = { sha: null };
 
   try {
     showLoadingIndicator(true);
 
     // 1. 加载当前的用户数据（移除了目录检查以减少一次GitHub读取）
     const loadUserKey = perf.start('数据加载', '用户数据');
-    let userJson, userData;
     try {
       const userUrl = `https://api.github.com/repos/${config.repo}/contents/${config.userDataPath}?ref=${config.branch}`;
       console.log('🔍 [DEBUG] 开始加载用户数据:', {
