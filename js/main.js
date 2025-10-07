@@ -15,12 +15,16 @@ async function init() {
 
     // 1. 加载配置
     const configKey = perf.start('配置加载');
+    console.log('🔧 [DEBUG] 开始加载配置...');
     await loadConfig();
+    console.log('✅ [DEBUG] 配置加载完成');
     perf.end(configKey);
 
     // 2. 更新用户数据（包括 leaderboard）
     const updateKey = perf.start('用户数据更新');
+    console.log('🔄 [DEBUG] 开始更新用户数据...');
     const updateResult = await updateUserData();
+    console.log('📊 [DEBUG] 用户数据更新完成:', updateResult);
     perf.end(updateKey);
 
     // 3. 加载数据（如果刚更新过，延迟一下避免缓存问题）

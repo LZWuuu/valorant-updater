@@ -19,13 +19,36 @@ export async function updateUserData() {
     const loadUserKey = perf.start('数据加载', '用户数据');
     let userJson, userData;
     try {
-      const userRes = await fetch(`https://api.github.com/repos/${config.repo}/contents/${config.userDataPath}?ref=${config.branch}`, {
+      const userUrl = `https://api.github.com/repos/${config.repo}/contents/${config.userDataPath}?ref=${config.branch}`;
+      console.log('🔍 [DEBUG] 开始加载用户数据:', {
+        url: userUrl,
+        repo: config.repo,
+        branch: config.branch,
+        userDataPath: config.userDataPath,
+        hasToken: !!config.token,
+        tokenPrefix: config.token ? config.token.substring(0, 10) + '...' : 'NO_TOKEN'
+      });
+
+      const userRes = await fetch(userUrl, {
         headers: { "Authorization": `token ${config.token}` }
+      });
+
+      console.log('📥 [DEBUG] 用户数据请求响应:', {
+        status: userRes.status,
+        statusText: userRes.statusText,
+        ok: userRes.ok,
+        headers: Object.fromEntries(userRes.headers.entries())
       });
 
       if (userRes.ok) {
         userData = await userRes.json();
         const decodedUserContent = atob(userData.content.replace(/\s/g, ''));
+
+        console.log('✅ [DEBUG] 用户数据解析成功:', {
+          sha: userData.sha,
+          contentLength: decodedUserContent.length,
+          isEmpty: decodedUserContent.trim() === ''
+        });
 
         if (decodedUserContent.trim() === '') {
           showLoadingIndicator(false);
@@ -34,12 +57,18 @@ export async function updateUserData() {
         }
 
         userJson = JSON.parse(decodedUserContent);
+        console.log('📊 [DEBUG] 当前用户数据:', {
+          playersCount: userJson.players?.length || 0,
+          newestMatchID: userJson.newestMatchID,
+          playerNames: userJson.players?.map(p => p.name) || []
+        });
       } else {
+        console.log('⚠️ [DEBUG] 用户数据文件不存在，使用默认数据');
         userJson = { players: [], newestMatchID: null };
         userData = { sha: null };
       }
     } catch (error) {
-      console.error("加载 user.json 失败:", error);
+      console.error("❌ [DEBUG] 加载 user.json 失败:", error);
       perf.end(loadUserKey);
       showLoadingIndicator(false);
       showErrorMessage("加载用户数据失败");
@@ -51,10 +80,17 @@ export async function updateUserData() {
     const fetchMatchKey = perf.start('数据获取', 'Henrik API比赛数据');
     let matchData;
     try {
+      console.log('🎮 [DEBUG] 开始获取Henrik API比赛数据...');
       matchData = await fetchMatchList();
+      console.log('📡 [DEBUG] Henrik API响应:', {
+        hasData: !!matchData,
+        dataLength: matchData?.data?.length || 0,
+        firstMatchId: matchData?.data?.[0]?.metadata?.matchid || 'N/A',
+        firstMatchMode: matchData?.data?.[0]?.metadata?.mode || 'N/A'
+      });
       perf.end(fetchMatchKey);
     } catch (error) {
-      console.error("获取比赛数据失败:", error);
+      console.error("❌ [DEBUG] 获取比赛数据失败:", error);
       perf.end(fetchMatchKey);
       showLoadingIndicator(false);
       showErrorMessage("获取比赛数据失败，请检查网络连接");
@@ -62,12 +98,17 @@ export async function updateUserData() {
     }
 
     if (!matchData || !matchData.data || !Array.isArray(matchData.data)) {
-      console.error("比赛数据格式错误:", matchData);
+      console.error("❌ [DEBUG] 比赛数据格式错误:", matchData);
       showLoadingIndicator(false);
       showErrorMessage("比赛数据格式错误");
       return;
     }
 
+    console.log('🔍 [DEBUG] 开始筛选custom比赛，总数据:', {
+      totalMatches: matchData.data.length,
+      userPlayersCount: userJson.players.length,
+      userPlayerNames: userJson.players.map(p => p.name)
+    });
 
     // 4. 处理比赛数据
     const customMatches = matchData.data.filter(match => {
@@ -107,25 +148,33 @@ export async function updateUserData() {
       return isValidPlayerCount;
     });
 
-    console.log(`🎯 比赛筛选结果: 总共${matchData.data.length}场比赛，筛选出${customMatches.length}场custom比赛`);
+    console.log(`🎯 [DEBUG] 比赛筛选结果: 总共${matchData.data.length}场比赛，筛选出${customMatches.length}场custom比赛`);
 
     if (customMatches.length > 0) {
       // 统计筛选出的比赛信息
       const matchStats = customMatches.map(match => ({
         matchId: match.metadata?.matchid,
         playerCount: match.players?.all_players?.length || 0,
-        mode: match.metadata?.mode
+        mode: match.metadata?.mode,
+        gameStartTime: match.metadata?.game_start_patched
       }));
-      console.log('筛选出的比赛详情:', matchStats);
+      console.log('📋 [DEBUG] 筛选出的比赛详情:', matchStats);
       const latestMatch = customMatches[0];
       const latestMatchId = latestMatch.metadata?.matchid;
       const matchPlayers = latestMatch.players?.all_players || [];
+
+      console.log('🔍 [DEBUG] 检查是否有新比赛:', {
+        latestMatchIdFromAPI: latestMatchId,
+        currentNewestMatchID: userJson.newestMatchID,
+        hasNewMatches: latestMatchId !== userJson.newestMatchID
+      });
 
       // 需要执行的操作列表
       const promises = [];
 
       // 4.1 检查并准备用户数据更新
       if (latestMatchId === userJson.newestMatchID) {
+        console.log('ℹ️ [DEBUG] 没有新比赛，检查是否需要补充保存历史比赛文件...');
 
         // 即使没有新比赛，也检查是否需要补充保存历史比赛文件
         let missingMatches = [];
@@ -236,17 +285,23 @@ export async function updateUserData() {
         }
       } else {
         hasNewMatches = true;
+        console.log('🆕 [DEBUG] 发现新比赛！开始处理...');
 
         // 找出需要保存的新比赛
         const newCustomMatches = [];
         for (const match of customMatches) {
           if (match.metadata?.matchid === userJson.newestMatchID) {
+            console.log(`🔍 [DEBUG] 找到分界点，停止收集新比赛: ${match.metadata?.matchid}`);
             break;
           }
           newCustomMatches.push(match);
         }
 
-        console.log(`   - 新增比赛数量: ${newCustomMatches.length}`);
+        console.log(`🆕 [DEBUG] 新增比赛数量: ${newCustomMatches.length}`, {
+          newMatchIds: newCustomMatches.map(m => m.metadata?.matchid),
+          oldNewestMatchID: userJson.newestMatchID,
+          newNewestMatchID: latestMatchId
+        });
 
         // 更新用户信息
         const updateUserInfoKey = perf.start('数据处理', '更新用户信息');
@@ -279,6 +334,7 @@ export async function updateUserData() {
 
           if (newCustomMatches.length > 0) {
             const batchUpdateKey = perf.start('批量更新', `user.json + ${newCustomMatches.length}个比赛文件 + leaderboard.json`);
+            console.log('📦 [DEBUG] 开始准备批量提交文件...');
 
             try {
               // 1. 准备要批量提交的文件
@@ -290,6 +346,7 @@ export async function updateUserData() {
                 path: config.userDataPath,
                 content: userContent
               });
+              console.log('📄 [DEBUG] 已准备user.json文件');
 
               // 3. 准备新比赛文件内容
               for (const match of newCustomMatches) {
@@ -305,9 +362,11 @@ export async function updateUserData() {
                   path: matchPath,
                   content: matchContent
                 });
+                console.log(`🎮 [DEBUG] 已准备比赛文件: ${matchPath}`);
               }
 
               // 4. 计算并准备leaderboard.json内容
+              console.log('📊 [DEBUG] 开始计算leaderboard数据...');
               // 先计算leaderboard数据（不保存到GitHub）
               updatedLeaderboardData = await updateLeaderboard(false); // false表示只计算不保存
 
@@ -317,22 +376,32 @@ export async function updateUserData() {
                   path: 'src/leaderboard.json',
                   content: leaderboardContent
                 });
+                console.log('📊 [DEBUG] 已准备leaderboard.json文件');
+              } else {
+                console.log('⚠️ [DEBUG] leaderboard数据计算失败或为空');
               }
+
+              console.log('🚀 [DEBUG] 准备批量提交文件:', {
+                totalFiles: filesToCommit.length,
+                filePaths: filesToCommit.map(f => f.path)
+              });
 
               // 5. 批量提交所有文件
               const commitMessage = `Update match data: ${newCustomMatches.length} new matches`;
+              console.log('⏳ [DEBUG] 开始批量提交到GitHub...');
               await commitMultipleFiles(filesToCommit, commitMessage);
 
-              console.log('✅ 成功批量更新:', {
+              console.log('✅ [DEBUG] 成功批量更新:', {
                 userJsonUpdated: true,
                 newMatches: newCustomMatches.length,
-                leaderboardUpdated: !!updatedLeaderboardData
+                leaderboardUpdated: !!updatedLeaderboardData,
+                totalFilesCommitted: filesToCommit.length
               });
 
             } catch (error) {
-              console.error("❌ 批量更新失败:", error);
+              console.error("❌ [DEBUG] 批量更新失败:", error);
               // 如果批量更新失败，回退到单独保存
-              console.log("🔄 尝试单独保存...");
+              console.log("🔄 [DEBUG] 尝试单独保存...");
 
               try {
                 await saveUserData(userJson, userData.sha);

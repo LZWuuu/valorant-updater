@@ -447,34 +447,43 @@ export async function saveLeaderboardData(leaderboardData) {
 export async function commitMultipleFiles(files, commitMessage = 'Batch update data files') {
   const key = perf.start('GitHub保存', 'commitMultipleFiles');
   try {
-    console.log('🔄 开始批量提交:', {
+    console.log('🔄 [DEBUG] 开始批量提交:', {
+      repo: config.repo,
+      branch: config.branch,
       files: files.map(f => f.path),
-      message: commitMessage
+      message: commitMessage,
+      filesContentSizes: files.map(f => ({ path: f.path, size: f.content.length }))
     });
 
     // 1. 获取当前最新commit的SHA
+    console.log('📥 [DEBUG] 获取最新commit SHA...');
     const latestCommitRes = await fetch(`https://api.github.com/repos/${config.repo}/git/refs/heads/${config.branch}`, {
       headers: { "Authorization": `token ${config.token}` }
     });
 
     if (!latestCommitRes.ok) {
+      console.error('❌ [DEBUG] 获取最新commit失败:', latestCommitRes.status, latestCommitRes.statusText);
       throw new Error(`Failed to get latest commit: ${latestCommitRes.status}`);
     }
 
     const latestRef = await latestCommitRes.json();
     const latestCommitSha = latestRef.object.sha;
+    console.log('✅ [DEBUG] 最新commit SHA:', latestCommitSha);
 
     // 2. 获取当前commit的tree
+    console.log('🌳 [DEBUG] 获取commit tree...');
     const commitRes = await fetch(`https://api.github.com/repos/${config.repo}/git/commits/${latestCommitSha}`, {
       headers: { "Authorization": `token ${config.token}` }
     });
 
     if (!commitRes.ok) {
+      console.error('❌ [DEBUG] 获取commit失败:', commitRes.status, commitRes.statusText);
       throw new Error(`Failed to get commit: ${commitRes.status}`);
     }
 
     const commit = await commitRes.json();
     const baseTreeSha = commit.tree.sha;
+    console.log('✅ [DEBUG] 基础tree SHA:', baseTreeSha);
 
     // 3. 创建新的tree（包含所有要更新的文件）
     const treeItems = files.map(file => ({
@@ -483,6 +492,8 @@ export async function commitMultipleFiles(files, commitMessage = 'Batch update d
       type: 'blob',
       content: file.content
     }));
+
+    console.log('🌳 [DEBUG] 创建新tree，包含文件:', treeItems.map(item => item.path));
 
     const treeRes = await fetch(`https://api.github.com/repos/${config.repo}/git/trees`, {
       method: 'POST',
@@ -498,12 +509,15 @@ export async function commitMultipleFiles(files, commitMessage = 'Batch update d
 
     if (!treeRes.ok) {
       const error = await treeRes.json();
+      console.error('❌ [DEBUG] 创建tree失败:', error);
       throw new Error(`Failed to create tree: ${error.message}`);
     }
 
     const tree = await treeRes.json();
+    console.log('✅ [DEBUG] 新tree创建成功，SHA:', tree.sha);
 
     // 4. 创建新的commit
+    console.log('📝 [DEBUG] 创建新commit...');
     const newCommitRes = await fetch(`https://api.github.com/repos/${config.repo}/git/commits`, {
       method: 'POST',
       headers: {
@@ -519,12 +533,15 @@ export async function commitMultipleFiles(files, commitMessage = 'Batch update d
 
     if (!newCommitRes.ok) {
       const error = await newCommitRes.json();
+      console.error('❌ [DEBUG] 创建commit失败:', error);
       throw new Error(`Failed to create commit: ${error.message}`);
     }
 
     const newCommit = await newCommitRes.json();
+    console.log('✅ [DEBUG] 新commit创建成功，SHA:', newCommit.sha);
 
     // 5. 更新branch引用指向新commit
+    console.log('🔄 [DEBUG] 更新分支引用...');
     const updateRefRes = await fetch(`https://api.github.com/repos/${config.repo}/git/refs/heads/${config.branch}`, {
       method: 'PATCH',
       headers: {
@@ -538,12 +555,15 @@ export async function commitMultipleFiles(files, commitMessage = 'Batch update d
 
     if (!updateRefRes.ok) {
       const error = await updateRefRes.json();
+      console.error('❌ [DEBUG] 更新分支引用失败:', error);
       throw new Error(`Failed to update ref: ${error.message}`);
     }
 
-    console.log('✅ 批量提交成功:', {
+    console.log('🎉 [DEBUG] 批量提交完全成功!', {
       commitSha: newCommit.sha,
-      filesCount: files.length
+      filesCount: files.length,
+      commitMessage: commitMessage,
+      filePaths: files.map(f => f.path)
     });
 
     perf.end(key);
