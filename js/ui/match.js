@@ -68,7 +68,7 @@ function parseMatchInfo(match) {
   const teams = match.teams || {};
 
   // 解析地图名称
-  const map = metadata.map || '未知地图';
+  const map = metadata.map === null ? '斗牛模式' : (metadata.map || '未知地图');
 
   // 解析对局时间（只保留星期、日期）
   let dateStr = '未知时间';
