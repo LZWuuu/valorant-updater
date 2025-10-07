@@ -29,7 +29,7 @@ export function showLoadingIndicator(show) {
       indicator.className = 'loading-indicator';
       indicator.innerHTML = `
         <div class="loading-spinner"></div>
-        <div class="loading-text">正在初始化应用...</div>
+        <div class="loading-text">菜鸡正在互啄中...</div>
       `;
       document.body.appendChild(indicator);
     }
