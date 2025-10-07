@@ -172,12 +172,44 @@ export async function updateUserData() {
         hasNewMatches: latestMatchId !== userJson.newestMatchID
       });
 
+      // 更新用户信息（无论是否有新比赛都要执行）
+      const updateUserInfoKey = perf.start('数据处理', '更新用户信息');
+      let updatedCount = 0;
+      userJson.players = userJson.players.map(player => {
+        const matchPlayer = matchPlayers.find(p => p.puuid === player.puuid);
+        if (matchPlayer) {
+          const oldInfo = { name: player.name, tag: player.tag, card: player.card };
+
+          player.name = matchPlayer.name;
+          player.tag = matchPlayer.tag;
+          player.card = matchPlayer.assets?.card?.small || "";
+
+          if (oldInfo.name !== player.name || oldInfo.tag !== player.tag || oldInfo.card !== player.card) {
+            updatedCount++;
+          }
+        }
+        return player;
+      });
+      console.log('👤 [DEBUG] 用户信息更新完成:', { updatedCount });
+      perf.end(updateUserInfoKey);
+
       // 需要执行的操作列表
       const promises = [];
 
       // 4.1 检查并准备用户数据更新
       if (latestMatchId === userJson.newestMatchID) {
         console.log('ℹ️ [DEBUG] 没有新比赛，检查是否需要补充保存历史比赛文件...');
+
+        // 即使没有新比赛，如果用户信息发生了变化，也要保存
+        if (updatedCount > 0) {
+          console.log('👤 [DEBUG] 用户信息发生变化，需要保存');
+          try {
+            await saveUserData(userJson, userData.sha);
+            console.log('✅ [DEBUG] 用户数据保存成功');
+          } catch (error) {
+            console.error('❌ [DEBUG] 保存用户数据失败:', error);
+          }
+        }
 
         // 即使没有新比赛，也检查是否需要补充保存历史比赛文件
         let missingMatches = [];
@@ -305,26 +337,6 @@ export async function updateUserData() {
           oldNewestMatchID: userJson.newestMatchID,
           newNewestMatchID: latestMatchId
         });
-
-        // 更新用户信息
-        const updateUserInfoKey = perf.start('数据处理', '更新用户信息');
-        let updatedCount = 0;
-        userJson.players = userJson.players.map(player => {
-          const matchPlayer = matchPlayers.find(p => p.puuid === player.puuid);
-          if (matchPlayer) {
-            const oldInfo = { name: player.name, tag: player.tag, card: player.card };
-
-            player.name = matchPlayer.name;
-            player.tag = matchPlayer.tag;
-            player.card = matchPlayer.assets?.card?.small || "";
-
-            if (oldInfo.name !== player.name || oldInfo.tag !== player.tag || oldInfo.card !== player.card) {
-              updatedCount++;
-            }
-          }
-          return player;
-        });
-        perf.end(updateUserInfoKey);
 
         promises.push(
           saveUserData(userJson, userData.sha)
@@ -490,5 +502,5 @@ export async function updateUserData() {
   }
 
   perf.end(mainKey);
-  return { hasNewMatches, updatedLeaderboardData };
+  return { hasNewMatches, updatedLeaderboardData, updatedUserData: userJson };
 }

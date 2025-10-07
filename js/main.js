@@ -40,7 +40,16 @@ async function init() {
     perf.end(loadKey);
 
     const uiKey = perf.start('UI数据设置');
-    setPlayers(data.players);
+
+    // 如果刚更新了用户数据，使用更新后的数据；否则使用从 GitHub 加载的数据
+    if (updateResult && updateResult.updatedUserData) {
+      console.log('🔄 [DEBUG] 使用更新后的用户数据');
+      setPlayers(updateResult.updatedUserData.players);
+    } else {
+      console.log('📥 [DEBUG] 使用从GitHub加载的用户数据');
+      setPlayers(data.players);
+    }
+
     setMatches(data.matches);
 
     // 如果刚更新了 leaderboard，使用新数据；否则使用从 GitHub 加载的数据
